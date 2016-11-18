@@ -34,8 +34,8 @@
 ///     // Deref as an array.
 ///     {
 ///         let example = Example { x: 42, y: 56 };
-///         let array: &[u32; 2] = &example;
-///         assert_eq!(array, &[42, 56]);
+///         let array: [u32; 2] = *example;
+///         assert_eq!(array, [42, 56]);
 ///     }
 ///
 ///     // Deref as a slice (via derefing as an array).
