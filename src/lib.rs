@@ -45,6 +45,13 @@
 ///         assert_eq!(slice, &[42, 56]);
 ///     }
 ///
+///     // Index (via derefing as an array).
+///     {
+///         let mut example = Example { x: 42, y: 56 };
+///         example[1] = 23;
+///         assert_eq!(example, Example { x: 42, y: 23 });
+///     }
+///
 ///     // Convert into an array.
 ///     {
 ///         let example = Example { x: 42, y: 56 };
