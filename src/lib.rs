@@ -123,13 +123,21 @@
 /// * `Into<[T; len] for Foo`
 /// * `From<[T; len]> for Foo`
 /// * `Into<&[T; len] for &Foo`
+/// * `AsRef<[T; len] for Foo`
 /// * `From<&[T; len] for &Foo`
+/// * `AsRef<Foo> for [T; len]`
 /// * `Into<&mut [T; len] for &mut Foo`
+/// * `AsMut<[T; len] for Foo`
 /// * `From<&mut [T; len] for &mut Foo`
+/// * `AsMut<Foo> for [T; len]`
 /// * `Into<&[T]> for &Foo`
+/// * `AsRef<[T]> for Foo`
 /// * `From<&[T]> for &Foo`
+/// * `AsRef<Foo> for [T]`
 /// * `Into<&mut [T]> for &mut Foo`
+/// * `AsMut<[T]> for Foo`
 /// * `From<&mut [T]> for &mut Foo`
+/// * `AsMut<Foo> for [T]`
 ///
 /// Note that converting from a slice will panic if the `len()` of the slice
 /// does not must match the `len` specified for the struct. You can derive or
@@ -283,6 +291,14 @@ macro_rules! struct_array {
             }
         }
 
+        impl ::std::convert::AsRef<[$member_type; $member_count]> for $name {
+            fn as_ref(&self) -> &[$member_type; $member_count] {
+                unsafe {
+                    &*(self as *const $name as *const [$member_type; $member_count])
+                }
+            }
+        }
+
         impl<'a> From<&'a [$member_type; $member_count]> for &'a $name {
             fn from(array: &[$member_type; $member_count]) -> &$name {
                 unsafe {
@@ -291,8 +307,24 @@ macro_rules! struct_array {
             }
         }
 
+        impl ::std::convert::AsRef<$name> for [$member_type; $member_count] {
+            fn as_ref(&self) -> &$name {
+                unsafe {
+                    &*(self as *const [$member_type; $member_count] as *const $name)
+                }
+            }
+        }
+
         impl<'a> Into<&'a mut [$member_type; $member_count]> for &'a mut $name {
             fn into(self) -> &'a mut [$member_type; $member_count] {
+                unsafe {
+                    &mut *(self as *mut $name as *mut [$member_type; $member_count])
+                }
+            }
+        }
+
+        impl ::std::convert::AsMut<[$member_type; $member_count]> for $name {
+            fn as_mut(&mut self) -> &mut [$member_type; $member_count] {
                 unsafe {
                     &mut *(self as *mut $name as *mut [$member_type; $member_count])
                 }
@@ -307,8 +339,24 @@ macro_rules! struct_array {
             }
         }
 
+        impl ::std::convert::AsMut<$name> for [$member_type; $member_count] {
+            fn as_mut(&mut self) -> &mut $name {
+                unsafe {
+                    &mut *(self as *mut [$member_type; $member_count] as *mut $name)
+                }
+            }
+        }
+
         impl<'a> Into<&'a [$member_type]> for &'a $name {
             fn into(self) -> &'a [$member_type] {
+                unsafe {
+                    ::std::slice::from_raw_parts(self as *const $name as *const $member_type, $member_count)
+                }
+            }
+        }
+
+        impl ::std::convert::AsRef<[$member_type]> for $name {
+            fn as_ref(&self) -> &[$member_type] {
                 unsafe {
                     ::std::slice::from_raw_parts(self as *const $name as *const $member_type, $member_count)
                 }
@@ -324,8 +372,25 @@ macro_rules! struct_array {
             }
         }
 
+        impl ::std::convert::AsRef<$name> for [$member_type] {
+            fn as_ref(&self) -> &$name {
+                assert!(self.len() == $member_count);
+                unsafe {
+                    &*(self.as_ptr() as *const $name)
+                }
+            }
+        }
+
         impl<'a> Into<&'a mut [$member_type]> for &'a mut $name {
             fn into(self) -> &'a mut [$member_type] {
+                unsafe {
+                    ::std::slice::from_raw_parts_mut(self as *mut $name as *mut $member_type, $member_count)
+                }
+            }
+        }
+
+        impl ::std::convert::AsMut<[$member_type]> for $name {
+            fn as_mut(&mut self) -> &mut [$member_type] {
                 unsafe {
                     ::std::slice::from_raw_parts_mut(self as *mut $name as *mut $member_type, $member_count)
                 }
@@ -337,6 +402,15 @@ macro_rules! struct_array {
                 assert!(slice.len() == $member_count);
                 unsafe {
                     &mut *(slice.as_mut_ptr() as *mut $name)
+                }
+            }
+        }
+
+        impl ::std::convert::AsMut<$name> for [$member_type] {
+            fn as_mut(&mut self) -> &mut $name {
+                assert!(self.len() == $member_count);
+                unsafe {
+                    &mut *(self.as_mut_ptr() as *mut $name)
                 }
             }
         }
@@ -403,9 +477,23 @@ mod tests {
     }
 
     #[test]
+    fn test_struct_ref_as_array_ref() {
+        let foo = &Example { x: 0, y: 1 };
+        let bar: &[u32; 2] = foo.as_ref();
+        assert_eq!(bar, &[0, 1]);
+    }
+
+    #[test]
     fn test_from_array_ref() {
         let foo = &[0, 1];
         let bar: &Example = foo.into();
+        assert_eq!(bar, &Example { x: 0, y: 1 });
+    }
+
+    #[test]
+    fn test_array_ref_as_struct_ref() {
+        let foo = &[0, 1];
+        let bar: &Example = foo.as_ref();
         assert_eq!(bar, &Example { x: 0, y: 1 });
     }
 
@@ -414,6 +502,17 @@ mod tests {
         let mut foo = &mut Example { x: 0, y: 1 };
         {
             let mut bar: &mut [u32; 2] = foo.into();
+            bar[1] = 2;
+            assert_eq!(bar, &mut [0, 2]);
+        }
+        assert_eq!(foo, &mut Example { x: 0, y: 2 });
+    }
+
+    #[test]
+    fn test_struct_ref_mut_as_array_ref_mut() {
+        let mut foo = &mut Example { x: 0, y: 1 };
+        {
+            let mut bar: &mut [u32; 2] = foo.as_mut();
             bar[1] = 2;
             assert_eq!(bar, &mut [0, 2]);
         }
@@ -432,9 +531,27 @@ mod tests {
     }
 
     #[test]
+    fn test_array_ref_mut_as_struct_ref_mut() {
+        let foo = &mut [0, 1];
+        {
+            let mut bar: &mut Example = foo.as_mut();
+            bar.y = 2;
+            assert_eq!(bar, &mut Example { x: 0, y: 2 });
+        }
+        assert_eq!(foo, &mut [0, 2]);
+    }
+
+    #[test]
     fn test_into_slice_ref() {
         let foo = Example { x: 0, y: 1 };
         let bar: &[u32] = (&foo).into();
+        assert_eq!(bar, [0, 1]);
+    }
+
+    #[test]
+    fn test_array_ref_as_slice_ref() {
+        let foo = Example { x: 0, y: 1 };
+        let bar: &[u32] = (&foo).as_ref();
         assert_eq!(bar, [0, 1]);
     }
 
@@ -443,6 +560,14 @@ mod tests {
         let foo = [0, 1];
         let bar: &[u32] = &foo;
         let baz: &Example = bar.into();
+        assert_eq!(baz, &Example { x: 0, y: 1 });
+    }
+
+    #[test]
+    fn test_slice_ref_as_array_ref() {
+        let foo = [0, 1];
+        let bar: &[u32] = &foo;
+        let baz: &Example = bar.as_ref();
         assert_eq!(baz, &Example { x: 0, y: 1 });
     }
 
@@ -458,11 +583,34 @@ mod tests {
     }
 
     #[test]
+    fn test_struct_ref_mut_as_slice_ref_mut() {
+        let mut foo = Example { x: 0, y: 1 };
+        {
+            let bar: &mut [u32] = (&mut foo).as_mut();
+            bar[1] = 2;
+            assert_eq!(bar, &mut [0, 2]);
+        }
+        assert_eq!(foo, Example { x: 0, y: 2 });
+    }
+
+    #[test]
     fn test_from_slice_ref_mut() {
         let mut foo = [0, 1];
         {
             let mut bar: &mut [u32] = &mut foo;
             let mut baz: &mut Example = bar.into();
+            baz.y = 2;
+            assert_eq!(baz, &Example { x: 0, y: 2 });
+        }
+        assert_eq!(foo, [0, 2]);
+    }
+
+    #[test]
+    fn test_ref_mut_slice_as_struct_ref_mut() {
+        let mut foo = [0, 1];
+        {
+            let mut bar: &mut [u32] = &mut foo;
+            let mut baz: &mut Example = bar.as_mut();
             baz.y = 2;
             assert_eq!(baz, &Example { x: 0, y: 2 });
         }
