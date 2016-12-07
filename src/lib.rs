@@ -432,14 +432,14 @@ mod tests {
     }
 
     #[test]
-    fn test_into_slice() {
+    fn test_into_slice_ref() {
         let foo = Example { x: 0, y: 1 };
         let bar: &[u32] = (&foo).into();
         assert_eq!(bar, [0, 1]);
     }
 
     #[test]
-    fn test_from_slice() {
+    fn test_from_slice_ref() {
         let foo = [0, 1];
         let bar: &[u32] = &foo;
         let baz: &Example = bar.into();
@@ -447,7 +447,7 @@ mod tests {
     }
 
     #[test]
-    fn test_into_mut_slice() {
+    fn test_into_slice_ref_mut() {
         let mut foo = Example { x: 0, y: 1 };
         {
             let bar: &mut [u32] = (&mut foo).into();
@@ -458,7 +458,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_mut_slice() {
+    fn test_from_slice_ref_mut() {
         let mut foo = [0, 1];
         {
             let mut bar: &mut [u32] = &mut foo;
