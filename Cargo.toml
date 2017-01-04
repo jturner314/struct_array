@@ -1,6 +1,6 @@
 [package]
 name = "struct_array"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Jim Turner <rust@turner.link>"]
 description = "A generator for structs that can easily be converted to/from arrays and slices."
 repository = "https://github.com/jturner314/struct_array"
@@ -9,3 +9,8 @@ keywords = ["struct", "array", "slice"]
 license = "MIT"
 
 [dependencies]
+syn = "0.10"
+quote = "0.3"
+
+[lib]
+proc-macro = true
