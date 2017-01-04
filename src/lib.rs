@@ -79,21 +79,21 @@
 //!
 //! * `Deref<Target=[T; len]> for Foo`
 //! * `DerefMut<Target=[T; len]> for Foo`
-//! * `Into<[T; len] for Foo`
+//! * `From<Foo> for [T; len]`
 //! * `From<[T; len]> for Foo`
-//! * `Into<&[T; len] for &Foo`
+//! * `From<&Foo> for &[T; len]`
 //! * `AsRef<[T; len] for Foo`
 //! * `From<&[T; len] for &Foo`
 //! * `AsRef<Foo> for [T; len]`
-//! * `Into<&mut [T; len] for &mut Foo`
+//! * `From<&mut Foo> for &mut [T; len]`
 //! * `AsMut<[T; len] for Foo`
 //! * `From<&mut [T; len] for &mut Foo`
 //! * `AsMut<Foo> for [T; len]`
-//! * `Into<&[T]> for &Foo`
+//! * `From<&Foo> for &[T]`
 //! * `AsRef<[T]> for Foo`
 //! * `From<&[T]> for &Foo`
 //! * `AsRef<Foo> for [T]`
-//! * `Into<&mut [T]> for &mut Foo`
+//! * `From<&mut Foo> for &mut [T]`
 //! * `AsMut<[T]> for Foo`
 //! * `From<&mut [T]> for &mut Foo`
 //! * `AsMut<Foo> for [T]`
@@ -175,10 +175,10 @@ fn impl_struct_array(ast: &syn::MacroInput) -> quote::Tokens {
             }
         }
 
-        impl #impl_generics Into<[#field_type; #field_count]> for #name #ty_generics #where_clause {
-            fn into(self) -> [#field_type; #field_count] {
+        impl #impl_generics From<#name> for [#field_type; #field_count] #ty_generics #where_clause {
+            fn from(s: #name) -> [#field_type; #field_count] {
                 unsafe {
-                    ::std::mem::transmute(self)
+                    ::std::mem::transmute(s)
                 }
             }
         }
@@ -191,10 +191,10 @@ fn impl_struct_array(ast: &syn::MacroInput) -> quote::Tokens {
             }
         }
 
-        impl<'a> #impl_generics Into<&'a [#field_type; #field_count]> for &'a #name #ty_generics #where_clause {
-            fn into(self) -> &'a [#field_type; #field_count] {
+        impl<'a> #impl_generics From<&'a #name> for &'a [#field_type; #field_count] #ty_generics #where_clause {
+            fn from(s: &'a #name) -> &'a [#field_type; #field_count] {
                 unsafe {
-                    &*(self as *const #name as *const [#field_type; #field_count])
+                    &*(s as *const #name as *const [#field_type; #field_count])
                 }
             }
         }
@@ -223,10 +223,10 @@ fn impl_struct_array(ast: &syn::MacroInput) -> quote::Tokens {
             }
         }
 
-        impl<'a> #impl_generics Into<&'a mut [#field_type; #field_count]> for &'a mut #name #ty_generics #where_clause {
-            fn into(self) -> &'a mut [#field_type; #field_count] {
+        impl<'a> #impl_generics From<&'a mut #name> for &'a mut [#field_type; #field_count] #ty_generics #where_clause {
+            fn from(s: &'a mut #name) -> &'a mut [#field_type; #field_count] {
                 unsafe {
-                    &mut *(self as *mut #name as *mut [#field_type; #field_count])
+                    &mut *(s as *mut #name as *mut [#field_type; #field_count])
                 }
             }
         }
@@ -255,10 +255,10 @@ fn impl_struct_array(ast: &syn::MacroInput) -> quote::Tokens {
             }
         }
 
-        impl<'a> #impl_generics Into<&'a [#field_type]> for &'a #name #ty_generics #where_clause {
-            fn into(self) -> &'a [#field_type] {
+        impl<'a> #impl_generics From<&'a #name> for &'a [#field_type] #ty_generics #where_clause {
+            fn from(s: &'a #name) -> &'a [#field_type] {
                 unsafe {
-                    ::std::slice::from_raw_parts(self as *const #name as *const #field_type, #field_count)
+                    ::std::slice::from_raw_parts(s as *const #name as *const #field_type, #field_count)
                 }
             }
         }
@@ -289,10 +289,10 @@ fn impl_struct_array(ast: &syn::MacroInput) -> quote::Tokens {
             }
         }
 
-        impl<'a> #impl_generics Into<&'a mut [#field_type]> for &'a mut #name #ty_generics #where_clause {
-            fn into(self) -> &'a mut [#field_type] {
+        impl<'a> #impl_generics From<&'a mut #name> for &'a mut [#field_type] #ty_generics #where_clause {
+            fn from(s: &'a mut #name) -> &'a mut [#field_type] {
                 unsafe {
-                    ::std::slice::from_raw_parts_mut(self as *mut #name as *mut #field_type, #field_count)
+                    ::std::slice::from_raw_parts_mut(s as *mut #name as *mut #field_type, #field_count)
                 }
             }
         }
