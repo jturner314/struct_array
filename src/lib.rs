@@ -1,12 +1,15 @@
-//! Provides a procedural macro that allows a struct to be easily converted
+//! Provides procedural macros that allow a struct to be easily converted
 //! to/from arrays and slices.
 //!
-//! The `StructArray` derive macro implements the necessary traits such that
-//! the struct can be easily converted to/from arrays and slices. The macro
-//! works for normal structs and tuple structs. The struct must have the
+//! The `StructArrayDeref` and `StructArrayConvert` procedural macros implement
+//! the necessary traits such that the struct can be easily converted to/from
+//! arrays and slices. The `StructArray` procedural macro applies both
+//! `StructArrayDeref` and `StructArrayConvert`. The macros work for normal
+//! structs and tuple structs. The macros check that the struct has the
 //! following properties:
 //!
-//!   * all the fields must be public (indicated with the `pub` keyword)
+//!   * all the fields must be public (because they are exposed in
+//!     arrays/slices created by the conversion functions)
 //!   * all the fields must have the same type
 //!   * the struct must have at least one field
 //!   * the struct must have the `#[repr(C)]` attribute
@@ -21,9 +24,7 @@
 //! #[derive(Clone,Debug,PartialEq,StructArray)]
 //! #[repr(C)]
 //! struct Example {
-//!     /// x member
 //!     pub x: u32,
-//!     /// y member
 //!     pub y: u32,
 //! }
 //!
@@ -33,13 +34,6 @@
 //!         let example = Example { x: 42, y: 56 };
 //!         let array: [u32; 2] = *example;
 //!         assert_eq!(array, [42, 56]);
-//!     }
-//!
-//!     // Deref as a slice (via derefing as an array).
-//!     {
-//!         let example = Example { x: 42, y: 56 };
-//!         let slice: &[u32] = &*example;
-//!         assert_eq!(slice, &[42, 56]);
 //!     }
 //!
 //!     // Index (via derefing as an array).
@@ -56,14 +50,21 @@
 //!         assert_eq!(array, [42, 56]);
 //!     }
 //!
-//!     // Convert from an array to a struct.
+//!     // Convert from an array.
 //!     {
 //!         let array = [42, 56];
 //!         let example: Example = array.into();
 //!         assert_eq!(example, Example { x: 42, y: 56 });
 //!     }
 //!
-//!     // Convert from a slice to a struct reference.
+//!     // Convert a ref into a slice.
+//!     {
+//!         let example = &Example { x: 42, y: 56 };
+//!         let slice: &[u32] = example.into();
+//!         assert_eq!(slice, &[42, 56]);
+//!     }
+//!
+//!     // Convert a slice into a ref.
 //!     {
 //!         let slice = &[42, 56][..];
 //!         let example: &Example = slice.into();
@@ -75,10 +76,17 @@
 //!
 //! # Trait implementations
 //!
-//! Deriving `StructArray` for a struct `Foo` causes it to implement:
+//! Deriving `StructArray` for a struct causes it to implement all the methods
+//! provided by `StructArrayDeref` and `StructArrayConvert`.
+//!
+//! Deriving `StructArrayDeref` for a struct `Foo` causes it to implement:
 //!
 //! * `Deref<Target=[T; len]> for Foo`
 //! * `DerefMut<Target=[T; len]> for Foo`
+//!
+//! Deriving `StructArrayConvert` for a struct `Foo` creates implementations
+//! for the following:
+//!
 //! * `From<Foo> for [T; len]`
 //! * `From<[T; len]> for Foo`
 //! * `From<&Foo> for &[T; len]`
@@ -99,7 +107,7 @@
 //! * `AsMut<Foo> for [T]`
 //!
 //! Note that converting from a slice will panic if the `len()` of the slice
-//! does not must match the `len` specified for the struct.
+//! does not must match the number of fields in the struct.
 
 #![feature(proc_macro, proc_macro_lib)]
 
@@ -112,6 +120,83 @@ extern crate syn;
 
 #[macro_use]
 extern crate quote;
+use quote::ToTokens;
+
+/// Errors in the input to one of the macros.
+#[derive(Clone,Debug,Eq,PartialEq)]
+enum MacroInputError {
+    ZeroFields,
+    NonpublicField,
+    DifferingFieldTypes,
+    NotStruct,
+    NotReprC,
+}
+
+impl std::fmt::Display for MacroInputError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match *self {
+            MacroInputError::ZeroFields => write!(f, "the struct must have at least one field"),
+            MacroInputError::NonpublicField => write!(f, "all fields in the struct must be public"),
+            MacroInputError::DifferingFieldTypes => write!(f, "all fields in the struct must have the same type"),
+            MacroInputError::NotStruct => write!(f, "the type must be a struct (or tuple struct), not an enum"),
+            MacroInputError::NotReprC => write!(f, "the struct must have the #[repr(C)] attribute"),
+        }
+    }
+}
+
+impl std::error::Error for MacroInputError {
+    fn description(&self) -> &str {
+        match *self {
+            MacroInputError::ZeroFields => "struct had no fields",
+            MacroInputError::NonpublicField => "struct had at least one nonpublic field",
+            MacroInputError::DifferingFieldTypes => "struct had fields of differing types",
+            MacroInputError::NotStruct => "input was not a struct",
+            MacroInputError::NotReprC => "struct was missing the #[repr(C)] attribute",
+        }
+    }
+
+    fn cause(&self) -> Option<&std::error::Error> {
+        None
+    }
+}
+
+/// Relevant information about the struct from the macro input.
+struct StructInfo<'a> {
+    name: &'a syn::Ident,
+    generics: &'a syn::Generics,
+    field_type: &'a syn::Ty,
+    field_count: usize,
+}
+
+/// Extracts the relevant information from the macro input and checks that the
+/// struct meets the requirements for the macros.
+fn parse_input<'a>(ast: &'a syn::MacroInput) -> Result<StructInfo<'a>, MacroInputError> {
+    let repr_c =
+        syn::MetaItem::List("repr".into(),
+                            vec![syn::NestedMetaItem::MetaItem(syn::MetaItem::Word("C".into()))]);
+    if !ast.attrs.iter().any(|attr| attr.value == repr_c) {
+        Err(MacroInputError::NotReprC)
+    } else {
+        match ast.body {
+            syn::Body::Enum(_) => Err(MacroInputError::NotStruct),
+            syn::Body::Struct(ref data) => {
+                let field_type = &data.fields().first().ok_or(MacroInputError::ZeroFields)?.ty;
+                if data.fields().iter().any(|field| field.vis != syn::Visibility::Public) {
+                    Err(MacroInputError::NonpublicField)
+                } else if data.fields().iter().any(|field| field.ty != *field_type) {
+                    Err(MacroInputError::DifferingFieldTypes)
+                } else {
+                    Ok(StructInfo {
+                        name: &ast.ident,
+                        generics: &ast.generics,
+                        field_type: field_type,
+                        field_count: data.fields().len(),
+                    })
+                }
+            }
+        }
+    }
+}
 
 /// Implements derive of `StructArray`.
 ///
@@ -121,41 +206,49 @@ extern crate quote;
 pub fn derive_struct_array(input: TokenStream) -> TokenStream {
     let source = input.to_string();
 
-    // Parse the string representation into a syntax tree
+    // Parse the string representation into a syntax tree.
     let ast = syn::parse_macro_input(&source).unwrap();
 
-    // Build the output
-    let expanded = impl_struct_array(&ast);
+    // Check the struct and get the necessary info.
+    let struct_info = parse_input(&ast).unwrap_or_else(|err| {
+        panic!(format!("Error expanding #[derive(StructArray)]: {}", err))
+    });
 
-    // Return the generated impl as a TokenStream
+    // Build the output.
+    let mut expanded = quote::Tokens::new();
+    impl_struct_array_deref(&struct_info).to_tokens(&mut expanded);
+    impl_struct_array_convert(&struct_info).to_tokens(&mut expanded);
+
+    // Return the generated impl as a TokenStream.
     expanded.parse().unwrap()
 }
 
-fn impl_struct_array(ast: &syn::MacroInput) -> quote::Tokens {
-    let name = &ast.ident;
-    let (field_type, field_count) = match ast.body {
-        syn::Body::Struct(ref data) => {
-            let field_type = &data.fields().first().expect(
-                "#[derive(StructArray)] can only be used with structs that have at least one field"
-            ).ty;
-            for field in data.fields() {
-                if field.vis != syn::Visibility::Public {
-                    panic!("#[derive(StructArray)] can only used if all the fields in the struct are public")
-                }
-                if field.ty != *field_type {
-                    panic!("#[derive(StructArray)] can only used with structs that have identical field types")
-                }
-            }
-            (field_type, data.fields().len())
-        },
-        syn::Body::Enum(_) => panic!("#[derive(StructArray)] can only be used with structs"),
-    };
-    let repr_c = syn::MetaItem::List("repr".into(), vec![syn::NestedMetaItem::MetaItem(syn::MetaItem::Word("C".into()))]);
-    if !ast.attrs.iter().any(|attr| attr.value == repr_c) {
-        panic!("#[derive(StructArray)] can only be used with structs that are #[repr(C)]");
-    }
+/// Implements derive of `StructArrayDeref`.
+///
+/// This function is called by the Rust compiler when compiling code that uses
+/// `#[derive(StructArrayDeref)]`.
+#[proc_macro_derive(StructArrayDeref)]
+pub fn derive_struct_array_deref(input: TokenStream) -> TokenStream {
+    let source = input.to_string();
 
-    let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
+    // Parse the string representation into a syntax tree.
+    let ast = syn::parse_macro_input(&source).unwrap();
+
+    // Check the struct and get the necessary info.
+    let struct_info = parse_input(&ast).unwrap_or_else(|err| {
+        panic!(format!("Error expanding #[derive(StructArrayDeref)]: {}", err))
+    });
+
+    // Build the output.
+    let expanded = impl_struct_array_deref(&struct_info);
+
+    // Return the generated impl as a TokenStream.
+    expanded.parse().unwrap()
+}
+
+fn impl_struct_array_deref(struct_info: &StructInfo) -> quote::Tokens {
+    let StructInfo { name, generics, field_type, field_count } = *struct_info;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     quote! {
         impl #impl_generics ::std::ops::Deref for #name #ty_generics #where_clause {
             type Target = [#field_type; #field_count];
@@ -174,7 +267,36 @@ fn impl_struct_array(ast: &syn::MacroInput) -> quote::Tokens {
                 }
             }
         }
+    }
+}
 
+/// Implements derive of `StructArrayConvert`.
+///
+/// This function is called by the Rust compiler when compiling code that uses
+/// `#[derive(StructArrayConvert)]`.
+#[proc_macro_derive(StructArrayConvert)]
+pub fn derive_struct_array_convert(input: TokenStream) -> TokenStream {
+    let source = input.to_string();
+
+    // Parse the string representation into a syntax tree.
+    let ast = syn::parse_macro_input(&source).unwrap();
+
+    // Check the struct and get the necessary info.
+    let struct_info = parse_input(&ast).unwrap_or_else(|err| {
+        panic!(format!("Error expanding #[derive(StructArrayConvert)]: {}", err))
+    });
+
+    // Build the output.
+    let expanded = impl_struct_array_convert(&struct_info);
+
+    // Return the generated impl as a TokenStream.
+    expanded.parse().unwrap()
+}
+
+fn impl_struct_array_convert(struct_info: &StructInfo) -> quote::Tokens {
+    let StructInfo { name, generics, field_type, field_count } = *struct_info;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    quote! {
         impl #impl_generics From<#name> for [#field_type; #field_count] #ty_generics #where_clause {
             fn from(s: #name) -> [#field_type; #field_count] {
                 unsafe {
