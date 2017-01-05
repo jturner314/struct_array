@@ -1,7 +1,8 @@
 # struct_array
 
-Provides procedural macros that allow a struct to be easily converted
-to/from arrays and slices.
+Provides procedural macros that allow a struct to be easily converted to/from
+arrays and slices. (See version 0.1.0 for a less-featureful alternative using
+`macro_rules!` instead of procedural macros.)
 
 The `StructArrayDeref` and `StructArrayConvert` procedural macros implement
 the necessary traits such that the struct can be easily converted to/from
