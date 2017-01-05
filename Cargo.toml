@@ -2,7 +2,7 @@
 name = "struct_array"
 version = "0.2.0"
 authors = ["Jim Turner <rust@turner.link>"]
-description = "A generator for structs that can easily be converted to/from arrays and slices."
+description = "Procedural macros for structs to be converted easily to/from arrays and slices."
 repository = "https://github.com/jturner314/struct_array"
 readme = "README.md"
 keywords = ["struct", "array", "slice"]
