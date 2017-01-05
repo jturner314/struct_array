@@ -296,6 +296,13 @@ pub fn derive_struct_array_convert(input: TokenStream) -> TokenStream {
 fn impl_struct_array_convert(struct_info: &StructInfo) -> quote::Tokens {
     let StructInfo { name, generics, field_type, field_count } = *struct_info;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let from_slice_doc = format!("
+Performs the conversion.
+
+# Panics
+
+Panics if the `len()` of the slice is not {}.
+", field_count);
     quote! {
         impl #impl_generics From<#name> for [#field_type; #field_count] #ty_generics #where_clause {
             fn from(s: #name) -> [#field_type; #field_count] {
@@ -394,6 +401,7 @@ fn impl_struct_array_convert(struct_info: &StructInfo) -> quote::Tokens {
         }
 
         impl<'a> #impl_generics From<&'a [#field_type]> for &'a #name #ty_generics #where_clause {
+            #[doc=#from_slice_doc]
             fn from(slice: &'a [#field_type]) -> &'a #name {
                 assert!(slice.len() == #field_count);
                 unsafe {
@@ -403,6 +411,7 @@ fn impl_struct_array_convert(struct_info: &StructInfo) -> quote::Tokens {
         }
 
         impl #impl_generics ::std::convert::AsRef<#name> for [#field_type] #ty_generics #where_clause {
+            #[doc=#from_slice_doc]
             fn as_ref(&self) -> &#name {
                 assert!(self.len() == #field_count);
                 unsafe {
@@ -428,6 +437,7 @@ fn impl_struct_array_convert(struct_info: &StructInfo) -> quote::Tokens {
         }
 
         impl<'a> #impl_generics From<&'a mut [#field_type]> for &'a mut #name #ty_generics #where_clause {
+            #[doc=#from_slice_doc]
             fn from(slice: &'a mut [#field_type]) -> &'a mut #name {
                 assert!(slice.len() == #field_count);
                 unsafe {
@@ -437,6 +447,7 @@ fn impl_struct_array_convert(struct_info: &StructInfo) -> quote::Tokens {
         }
 
         impl #impl_generics ::std::convert::AsMut<#name> for [#field_type] #ty_generics #where_clause {
+            #[doc=#from_slice_doc]
             fn as_mut(&mut self) -> &mut #name {
                 assert!(self.len() == #field_count);
                 unsafe {
