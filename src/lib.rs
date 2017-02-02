@@ -109,8 +109,6 @@
 //! Note that converting from a slice will panic if the `len()` of the slice
 //! does not must match the number of fields in the struct.
 
-#![feature(proc_macro, proc_macro_lib)]
-
 #![recursion_limit = "500"]
 
 extern crate proc_macro;
