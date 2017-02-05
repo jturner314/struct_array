@@ -1,5 +1,7 @@
 # struct_array
 
+[![Build Status](https://travis-ci.org/jturner314/struct_array.svg?branch=master)](https://travis-ci.org/jturner314/struct_array)
+
 Provides procedural macros that allow a struct to be easily converted to/from
 arrays and slices. (See [version 0.1.0][] for a less-featureful alternative
 using `macro_rules!` instead of procedural macros.)
