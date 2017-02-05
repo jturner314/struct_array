@@ -9,7 +9,7 @@ keywords = ["struct", "array", "slice"]
 license = "MIT"
 
 [dependencies]
-syn = "0.10"
+syn = "0.11"
 quote = "0.3"
 
 [lib]
