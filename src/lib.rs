@@ -401,7 +401,7 @@ Panics if the `len()` of the slice is not {}.
         impl<'a> #impl_generics From<&'a [#field_type]> for &'a #name #ty_generics #where_clause {
             #[doc=#from_slice_doc]
             fn from(slice: &'a [#field_type]) -> &'a #name {
-                assert!(slice.len() == #field_count);
+                assert_eq!(slice.len(), #field_count);
                 unsafe {
                     &*(slice.as_ptr() as *const #name)
                 }
@@ -411,7 +411,7 @@ Panics if the `len()` of the slice is not {}.
         impl #impl_generics ::std::convert::AsRef<#name> for [#field_type] #ty_generics #where_clause {
             #[doc=#from_slice_doc]
             fn as_ref(&self) -> &#name {
-                assert!(self.len() == #field_count);
+                assert_eq!(self.len(), #field_count);
                 unsafe {
                     &*(self.as_ptr() as *const #name)
                 }
@@ -437,7 +437,7 @@ Panics if the `len()` of the slice is not {}.
         impl<'a> #impl_generics From<&'a mut [#field_type]> for &'a mut #name #ty_generics #where_clause {
             #[doc=#from_slice_doc]
             fn from(slice: &'a mut [#field_type]) -> &'a mut #name {
-                assert!(slice.len() == #field_count);
+                assert_eq!(slice.len(), #field_count);
                 unsafe {
                     &mut *(slice.as_mut_ptr() as *mut #name)
                 }
@@ -447,7 +447,7 @@ Panics if the `len()` of the slice is not {}.
         impl #impl_generics ::std::convert::AsMut<#name> for [#field_type] #ty_generics #where_clause {
             #[doc=#from_slice_doc]
             fn as_mut(&mut self) -> &mut #name {
-                assert!(self.len() == #field_count);
+                assert_eq!(self.len(), #field_count);
                 unsafe {
                     &mut *(self.as_mut_ptr() as *mut #name)
                 }

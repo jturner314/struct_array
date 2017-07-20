@@ -1,6 +1,6 @@
 [package]
 name = "struct_array"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Jim Turner <rust@turner.link>"]
 description = "Procedural macros for structs to be converted easily to/from arrays and slices."
 repository = "https://github.com/jturner314/struct_array"
